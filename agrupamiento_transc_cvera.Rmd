@@ -415,3 +415,26 @@ shinyApp(ui = ui, server = server)
 
 ```
 
+```{r}
+# Valorizacion economica basada en asignaciones correctas
+costo_mala_asignacion <- 800
+beneficio_buena_asignacion <- 1000
+n_clientes <- nrow(df_mall)
+proporcion_correcta_asignacion <- mean(silhouette_avg[, 3])
+
+# selecciona la tercera columna del resultado de silhouette, que contiene el coef. de silueta para cada punto del dataset.
+clientes_correctamente_asignados <- round(proporcion_correcta_asignacion * n_clientes)
+clientes_incorrectamente_asignados <- n_clientes - clientes_correctamente_asignados
+
+beneficio_total <- clientes_correctamente_asignados * beneficio_buena_asignacion
+costo_total <- clientes_incorrectamente_asignados * costo_mala_asignacion
+
+valorizacion_economica_neta <- beneficio_total - costo_total
+
+cat("Clientes incorrectamente asignados:", clientes_incorrectamente_asignados, "\n")
+cat("Beneficio total: $", beneficio_total, "\n")
+cat("Costo total: $", costo_total, "\n")
+cat("Valorización económica neta: $", valorizacion_economica_neta, "\n")
+
+```
+
