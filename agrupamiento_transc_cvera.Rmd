@@ -1,0 +1,417 @@
+---
+title: "agrupamiento_transc_cvera"
+author: "Cristian Vera"
+date: "2025-05-17"
+output: html_document
+---
+
+```{r}
+install.packages("factoextra")
+```
+
+
+```{r}
+# Carga de librerias
+library(tidyverse) # Manipulacion de datos
+library(cluster) # Para el calculo del coeficiente de silueta
+library(factoextra) # Para visualizacion del clustering y kmeans
+library(plotly) # Para visualizacion interactiva
+```
+
+
+```{r}
+#Carga de dataset
+df_mall <- read.csv('Mall_Customers.csv')
+df_mall
+```
+
+```{r}
+# Verificar las dimensiones y nombres de col
+print(dim(df_mall))
+print(colnames(df_mall))
+```
+
+```{r}
+#Eliminar las col "Gender" y "CustomerID"
+df_mall <- df_mall %>% select(-Gender, -CustomerID)
+print(colnames(df_mall))
+```
+
+
+```{r}
+# Definir el rango de clusters que se probaran
+n_clusters_range <- 2:10
+wcss <- c() #Lista vacia para almacenar wcss
+```
+
+El coeficiente de silueta ("CS", o índice de silueta) es una medida de calidad de un agrupamiento (clustering) que evalúa qué tan bien se encuentra una instancia dentro de su grupo (cluster) en comparación con otros grupos.
+
+🔍 ¿Para qué se usa?
+Se utiliza para:
+
+- Evaluar la cohesión (qué tan cerca están los puntos dentro del mismo cluster).
+- Evaluar la separación (qué tan lejos están de otros clusters).
+- Determinar el número óptimo de clusters.
+
+Cercano a 1: el punto está bien agrupado.
+Cerca de 0: el punto está en el límite entre dos clusters.
+Cercano a -1: el punto probablemente esté en el cluster equivocado.
+
+📊 Interpretación global:
+Se puede calcular el promedio del coeficiente de silueta de todos los puntos para evaluar la calidad del clustering completo:
+
+s≈0.7 o más: agrupamiento fuerte.
+s≈0.5: agrupamiento razonable.
+s≤0.25: agrupamiento débil o mala elección del número de clusters.
+
+```{r}
+# Iterar sobre un rango de posibles cantidades de clusters
+for (n_cluster in n_clusters_range) {
+  
+  # Ejecuta el algoritmo k-means con n_cluster
+  # nstar = 25 cantidades que se corre el algoritmo 
+  km <- kmeans(df_mall, centers = n_cluster, nstart =25)
+  
+  # Calcula promedio de "CS" para evaluar calidad del clustering
+  # silhouette() necesita clusters asignados y matriz de distancias
+  silhouette_avg <- silhouette(km$cluster, dist(df_mall))
+  
+  # Promedio de CS (col 3 del resultado)
+  sil_coeff <- mean(silhouette_avg[, 3]) # Mayor valor indica mejor separacion entre clusters
+  
+  # Imprime por consola el valor del CS para esta cantidad de clusters
+  cat("For n_clusters =", n_cluster, ", El Coef. de Silueta es:", sil_coeff, "\n")
+  
+  # Guarda suma de cuadrados intra-cluster
+  # Sirve para graficar el metodo del codo
+  wcss <- c(wcss, km$tot.withinss)
+}
+
+  # Graficar el metodo del codo para ver en que punto el wcss deja de decrecer bruscamente
+plot(n_clusters_range,
+     wcss,
+     type = "b",
+     pch = 19,
+     frame = FALSE,
+     xlab = "Numero de Clusters",
+     ylab = "WCSS",
+     main = "The Elbow Method")
+```
+✅ Interpretación general del coeficiente de silueta:
+
+🧠 El valor más alto del coeficiente de silueta es 0.452 cuando se usan 6 clusters.
+A partir de 6 clusters, el coeficiente comienza a disminuir, lo cual indica que agregar más clusters no mejora la calidad del agrupamiento, e incluso puede degradarla.
+Esto sugiere que 6 es el número óptimo de clusters, al menos desde el punto de vista de la separación entre grupos y cohesión interna.
+
+
+```{r}
+# Inicializar vectores
+wcss <- c()
+silhouette_scores <- c()
+
+# Iterar sobre un rango de posibles cantidades de clusters
+for (n_cluster in n_clusters_range) {
+  
+  km <- kmeans(df_mall, centers = n_cluster, nstart = 25)
+  silhouette_avg <- silhouette(km$cluster, dist(df_mall))
+  sil_coeff <- mean(silhouette_avg[, 3])
+  
+  # Imprimir en consola
+  cat("For n_clusters =", n_cluster, ", El Coef. de Silueta es:", sil_coeff, "\n")
+  
+  # Guardar valores
+  wcss <- c(wcss, km$tot.withinss)
+  silhouette_scores <- c(silhouette_scores, sil_coeff)
+}
+
+# Graficar Coeficiente de Silueta
+plot(n_clusters_range,
+     silhouette_scores,
+     type = "b",
+     pch = 19,
+     col = "darkgreen",
+     frame = FALSE,
+     xlab = "Número de Clusters",
+     ylab = "Coeficiente de Silueta Promedio",
+     main = "Análisis de Separación de Clusters (Coef. de Silueta)")
+
+```
+📊 Gráfico alternativo al método del codo: el gráfico del Coeficiente de Silueta promedio según la cantidad de clusters. Este gráfico es útil para visualizar qué tan bien definidos están los clusters y complementa al método del codo.
+
+```{r}
+library(cluster)   # Para la función silhouette
+library(factoextra) # Para fviz_silhouette
+
+# Ejecutar K-means con 6 clusters
+set.seed(123) # para reproducibilidad
+km_6 <- kmeans(df_mall, centers = 6, nstart = 25)
+
+# Calcular distancias y siluetas
+sil_6 <- silhouette(km_6$cluster, dist(df_mall))
+
+# Visualizar el gráfico de silueta
+fviz_silhouette(sil_6, 
+                palette = "jco", 
+                ggtheme = theme_minimal(),
+                title = "Gráfico de Silueta para k = 6 Clusters")
+
+```
+📊 Gráfico de silueta completo para k = 6 clusters usando R. Este gráfico te permite ver visualmente qué tan bien se agrupan los datos individualmente dentro de cada cluster.
+
+🔍 Interpretación:
+Cada barra representa una observación.
+
+El largo de la barra indica qué tan bien está asignada al cluster (valor cercano a 1 = buena asignación).
+
+Si hay muchas barras negativas o cortas, podría haber solapamiento entre clusters.
+
+El promedio de todas las barras es el coeficiente global de silueta para k = 6.
+
+
+```{r}
+library(plotly)
+
+plot_ly(
+  x = ~n_clusters_range,
+  y = ~wcss,
+  type = "scatter",
+  mode = "markers+lines",
+  
+  marker = list(
+    color = ~n_clusters_range,
+    colorscale = "viridis",
+    size = 10
+  ),
+  
+  line = list(
+    color = 'rgba(100, 100, 100, 0.8)',
+    width = 2
+  )
+) %>%
+  layout(
+    title = "Metodo del codo",
+    xaxis = list(title = "Numero de clusters"),
+    yaxis = list (title = "WCSS (Whitin-Cluster Sum of Squares"),
+    shadowlegend = FALSE
+  )
+```
+📊 Gráfico interactivo tipo "método del codo" donde:
+
+- El eje X muestra diferentes números de clusters.
+- El eje Y muestra la suma de cuadrados intra-cluster (WCSS).
+- Los puntos y líneas conectan esos valores, coloreados según el número de clusters.
+- El gráfico ayuda a identificar visualmente el número óptimo de clusters donde la reducción de WCSS se vuelve menos pronunciada ("el codo").
+
+```{r}
+# Crear el modelo final con 6 clusters
+set.seed(5)
+km_final <- kmeans(df_mall, centers = 6, nstart = 100, iter.max = 1000)
+print(km_final$cluster)
+```
+```{r}
+# Imprimir los centroides
+print("Centroides:")
+print(km_final$centers)
+
+# Agregar la asignacion de clusters al Dataframe original
+df_mall$cluster <- km_final$cluster
+head(df_mall, 10)
+```
+
+```{r}
+# Ejemplo: Nuevo cliente y asignacion a un cluster
+
+edad_nuevo_cliente <- 46
+ingreso_anual_nuevo_cliente <- 62
+puntaje_gasto_nuevo_cliente <- 60
+
+# Se crea dataframe con esos valores para manterner cinsistencia con los datos originales
+
+nuevo_cliente <- data.frame(
+  Age = edad_nuevo_cliente,
+  Annual_Income = ingreso_anual_nuevo_cliente,
+  Spending_Score = puntaje_gasto_nuevo_cliente
+)
+
+# Calculamos la distancia del nuevo cliente a cada centroide (uno por cluster)
+# apply(..., 1, ...) aplica una funcion a cada (centroide) de la matriz km_final$centers
+distancias <- apply(km_final$centers, 1, function(centroide) {
+  sum((centroide - as.numeric(nuevo_cliente))^2)
+})
+
+# Asignamos el cliente al cluster con menor distancia
+segmento_nuevo_cliente <- which.min(distancias)
+
+# Mostramos el numero de cluster al que pertenece el nuevo cliente
+cat("El nuevo cliente pertenece al segmento:", segmento_nuevo_cliente, "\n")
+```
+```{r}
+# Calcular coef. de Silueta y Davies-Bouldin
+silhouette_avg <- silhouette(km_final$cluster, dist(df_mall))
+cat("Coeficiente de Silueta promedio:", mean(silhouette_avg[, 3]), "\n")
+```
+```{r}
+# Funcion para calcula el indice de Davies-Bouldin manualmente
+davies_bouldin_index <- function(data, clusters, centers) {
+  # Calcular la cantidad de clusters unicos
+  n_clusters <- length(unique(clusters))
+  
+  # Inicializa el indice Davies-Bouldin
+  db_index <- 0
+  
+  #itera sobre c/cluster i
+  for (i in 1:n_clusters) {
+    max_ratio <- 0 # Para guardar el máx ratio para el cluster i
+    #itera sobre c/cluster j
+    for (j in 1:n_clusters) {
+      if (i != j) {
+        #Calcula la dispersion dentro del clsuter i(promedio de dist al cuadrado)
+        si <- mean(dist(data[clusters == i, ])^2)
+        #Calcula la dispersion dentro del cluster j
+        sj <- mean(dist(data[clusters == j, ])^2)
+        
+        #Calcula la distancia al cuadrado entre los centroides de los clusters i y j
+        Mij <- sum((centers[i, ] - centers[j, ])^2)
+        
+        #Calcula el ratio de dispersion entre los clusters i y j
+        ratio <- (si + sj) / Mij
+        
+        #Guarda el mayor ratio para el cluster i
+        if (ratio > max_ratio) {
+          max_ratio <- ratio
+        }
+      }
+    }
+    
+    # Acumula el máx ratio del cluster i al indice DB total
+    db_index <- db_index + max_ratio
+  }
+  
+  # devuelve el promedio del indice Davies-Bouldin
+  return(db_index / n_clusters)
+}
+
+# Uso de la funcion con tus datos
+# df_mall: datos de entrada
+# km_final$cluster: etiquetas de cluster del modelo kmeans
+# kkm_final$centers: centroides del modelo kmeans
+db_index_manual <- davies_bouldin_index(df_mall, km_final$cluster, km_final$centers)
+
+# Imprime el valor del indice Davies-Bouldin
+cat("Indice de Davies-Bouldin manual:", db_index_manual, "\n")
+```
+El índice de Davies-Bouldin (DBI) es una métrica de evaluación interna usada para medir la calidad de una partición en técnicas de clustering, como K-means.
+
+🧠 ¿Qué mide?
+El índice mide la separación entre clusters y la cohesión dentro de los clusters.
+
+Cohesión (Sᵢ): cuán cerca están los puntos de su centroide.
+
+Separación (Mᵢⱼ): qué tan lejos están los centroides de los distintos clusters.
+
+📊 Regla práctica
+DBI	Calidad del Clustering
+0 (ideal)	Excelente
+~0,3–0,5	Bueno
+Mayor a 1	Malo
+
+
+```{r}
+# Verificar si hay valores NA en las columnas
+summary(df_mall)
+```
+
+
+```{r}
+library(shiny)
+
+# UI
+ui <- fluidPage(
+  titlePanel("Asignación de Clientes a Clusters con K-means"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      # Control deslizante para ingresar la edad del cliente
+      sliderInput("age", "Edad del Cliente:",
+                  min = 18, max = 70,
+                  value = 36), # Valor inicial basado en la mediana
+      
+      # Control deslizante para ingresar el ingreso anual
+      sliderInput("income", "Ingreso Anual (k$):",
+                  min = 15, max = 137,
+                  value = 60), # Valor inicial basado en el promedio
+      
+      # Control deslizante para ingresar el puntaje de gasto
+      sliderInput("spending", "Puntaje de Gasto (1-100):",
+                  min = 1, max = 99,
+                  value = 50), # Valor inicial basado en el promedio
+      
+      # Botón para calcular el cluster
+      actionButton("submit", "Calcular Cluster")
+    ),
+    
+    mainPanel(
+      # Mostrar los resultados del cluster con colores y animación
+      h3("Resultado del Clustering"),
+      htmlOutput("cluster_output"),
+      
+      # Mostrar el resumen de las variables (máximo y mínimo)
+      h4("Resumen de los datos"),
+      verbatimTextOutput("summary_output")
+    )
+  )
+)
+
+# Server
+server <- function(input, output) {
+  
+  # Resumen de los datos originales
+  output$summary_output <- renderPrint({
+    summary(df_mall)
+  })
+  
+  # Calcular el cluster basado en los inputs del usuario
+  observeEvent(input$submit, {
+    
+    nuevo_cliente <- data.frame(
+      Age = input$age,
+      Annual_Income = input$income,
+      Spending_Score = input$spending
+    )
+    
+    # Calcular las distancias del nuevo cliente a los centroides
+    distancias <- apply(km_final$centers, 1, function(centroide) {
+      sum((centroide - as.numeric(nuevo_cliente))^2)
+    })
+    
+    # Obtener el cluster más cercano
+    segmento_nuevo_cliente <- which.min(distancias)
+    
+    # Definir colores para los clusters
+    colores <- c("red", "blue", "green", "orange", "purple")
+    color <- colores[segmento_nuevo_cliente]
+    
+    # Mostrar el resultado con animación simple y color
+    output$cluster_output <- renderUI({
+      HTML(sprintf(
+        '<div style="font-size: 24px; color: %s; animation: fadeIn 2s;">
+           El cliente pertenece al <b>Cluster #%d</b>
+         </div>
+         <style>
+           @keyframes fadeIn {
+             from {opacity: 0;}
+             to {opacity: 1;}
+           }
+         </style>', 
+        color, segmento_nuevo_cliente
+      ))
+    })
+  })
+}
+
+# Ejecutar la app
+shinyApp(ui = ui, server = server)
+
+
+```
+
