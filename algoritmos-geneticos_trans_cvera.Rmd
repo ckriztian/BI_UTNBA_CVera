@@ -1,0 +1,469 @@
+---
+title: "Algorítmos Genéticos"
+author: "Cristian Vera"
+date: "2025-06-14"
+output: html_document
+---
+
+```{r}
+# Instalar paquetes si no están instalados
+if(!require(GA)) install.packages("GA", dependencies = TRUE)
+if(!require(leaflet)) install.packages("leaflet", dependencies = TRUE)
+if(!require(geosphere)) install.packages("geosphere", dependencies = TRUE)
+```
+
+
+```{r}
+# Cargar las librerías necesarias
+library(GA)          # Para algoritmos genéticos
+library(leaflet)     # Para mapas interactivos
+library(geosphere)   # Para distancias geográficas
+
+# Datos de los museos (nombres, latitudes y longitudes)
+museos <- data.frame(
+  Nombres_museos = c("Louvre (Francia)", "Reina Sofía (España)", "Van Gogh Museum (Países Bajos)",
+                    "Uffizi (Italia)", "Natural History Museum (Reino Unido)",
+                    "Vatican Museum (Ciudad del Vaticano)", "Kunsthistorisches Museum (Austria)",
+                    "Musée d'Orsay (Francia)", "Capilla Sixtina (Ciudad del Vaticano)",
+                    "British Museum (Reino Unido)"),
+  Latitudes = c(48.8606, 40.4071, 52.3584, 43.7687, 51.4966, 41.9065, 48.2035, 48.8599, 41.9029, 51.5194),
+  Longitudes = c(2.3376, -3.6949, 4.8810, 11.2559, -0.1764, 12.4534, 16.3615, 2.3262, 12.4547, -0.1270)
+)
+```
+
+```{r}
+# Número total de museos
+n <- nrow(museos)
+
+# Crear matriz de distancias (en kilómetros)
+D <- matrix(0, nrow = n, ncol = n)  # Corregido "nco1" -> "ncol"
+for (i in 1:n) {
+  for (j in 1:n) {
+    D[i, j] <- distGeo(
+      c(museos$Longitudes[i], museos$Latitudes[i]),
+      c(museos$Longitudes[j], museos$Latitudes[j])
+    ) / 1000  # Distancia en km
+  }
+}
+```
+
+```{r}
+# Función de fitness que calcula la distancia total de un recorrido
+trayectoria <- function(recorrido) {
+    total_dist <- 0  # Inicializa la variable para acumular la distancia total
+    for (i in 1:(length(recorrido) - 1)) {  # Itera hasta el penúltimo museo
+        total_dist <- total_dist + D[recorrido[i], recorrido[i + 1]]  # Suma distancia entre museos i e i+1
+    }
+    return(total_dist)  # Devuelve la distancia total del recorrido circular
+}
+```
+
+```{r}
+# Configuración del algoritmo genético
+GA_objetivo <- function(x) {
+    return(-trayectoria(x))  # Minimiza la distancia (el GA en R maximiza por defecto)
+}
+
+# Ejecutar el algoritmo genético
+ga_modelo <- ga(
+    type = "permutation",      # Problema de permutación (orden de visita)
+    fitness = GA_objetivo,     # Función objetivo (¡corregido el nombre!)
+    lower = 1,                 # Índice mínimo (primer museo)
+    upper = nrow(museos),      # Índice máximo (último museo)
+    popSize = 50,              # Tamaño de población (aumentado para mejor exploración)
+    maxiter = 1000,            # Iteraciones (aumentado para convergencia)
+    pmutation = 0.1,           # Probabilidad de mutación (balance entre exploración/exploitación)
+    elitism = TRUE             # Preserva las mejores soluciones entre generaciones
+)
+```
+
+```{r}
+# Obtener la mejor solución
+ruta_optima <- ga_modelo@solution[1, ]  # Mejor orden de visita
+distancia_optima <- -ga_modelo@fitnessValue  # La mejor distancia encontrada. Convertir a positivo (se había negado en GA_objetivo)
+
+# Crear mapa interactivo con la ruta
+mapa <- leaflet() %>%
+  addTiles() %>%  # Capa base del mapa
+  setView(lng = mean(museos$Longitudes), lat = mean(museos$Latitudes), zoom = 5) %>%
+  addMarkers(
+    data = museos[ruta_optima, ],
+    lng = ~Longitudes, 
+    lat = ~Latitudes,
+    popup = ~Nombres_museos,
+    label = ~paste("Parada", 1:nrow(museos))
+  ) %>%
+  addPolylines(
+    data = museos[ruta_optima, ],
+    lng = ~Longitudes,
+    lat = ~Latitudes,
+    color = "red",
+    weight = 3
+  ) %>%
+  addPopups(
+    lng = museos$Longitudes[ruta_optima[1]],
+    lat = museos$Latitudes[ruta_optima[1]],
+    popup = "<b>Punto de inicio/fin</b>",
+    options = popupOptions(closeButton = FALSE)
+  )
+
+# Mostrar resultados
+print(paste("Distancia óptima:", round(distancia_optima, 2), "km"))
+print(museos[ruta_optima, "Nombres_museos"])
+mapa  # Visualizar el mapa
+```
+```{r}
+buscar_mejores_hiperparametros <- function(hyper_iters = 10) {
+  mejor_distancia <- Inf # Inicializa la mejor distancia con infinito
+  mejores_parametros <- NULL # Inicializa el contador para los mejores parametros
+  
+  # Iteramos hyper_iters veces para probar diferentes combinaciones de hiperparametros
+  for (i in 1:hyper_iters) {
+    
+    # Seleccion aleatoria de los hiperparametros en cada iter:
+    n_poblacion <- sample(c(10, 20, 50), 1) # Selecciona aleatoriamente el tamaño de la poblacion entre 10,20,50
+    cxpb <- runif(1, 0.4, 0.9) # Selecciona una probabilidad de cruce aleatoria entre 0.4 y 0.9
+    mutpb <- runif(1, 0.1, 0.3) # Selecciona una probabilidad de cruce aleatoria entre 0.1 y 0.3
+    ngen <- sample(c(100, 300, 500), 1) # Selecciona aleatoriamente el tamaño de la poblacion entre 100, 300, 500
+    
+    #Ejecutar el algoritmo genetico con los hiperparametros seleccionados
+    ga_modelo <- ga(
+      type = "permutation",
+      fitness = function(x) -trayectoria(x),
+      lower = 1, upper = nrow(museos),
+      popSize = n_poblacion,
+      maxiter = ngen,
+      pmutation =  mutpb,
+      pcrossover = cxpb
+    )
+    
+    # Obtener la mejor solucion y la distancia minima para este conjunto de hiperparametros
+    # Obtener la mejor solución
+    ruta_optima <- ga_modelo@solution[1, ]  # Mejor orden de visita
+    distancia_optima <- -ga_modelo@fitnessValue  # La mejor distancia encontrada. Convertir a positivo (se había negado en GA_objetivo)
+    
+    # Comparar la distancia obtenida con la mejor distancia encontrada hasta ahora
+    if (distancia_optima < mejor_distancia) {
+      # Si encontramos una mejor distancia, actualizamos los mejores parametros
+      mejores_parametros <- list(
+        n_poblacion = n_poblacion,
+        cxpb = cxpb, 
+        mutpb = mutpb,
+        ngen = ngen, 
+        ruta_optima = ruta_optima,
+        distancia_optima = distancia_optima
+      )
+    }
+  }
+  
+  return(mejores_parametros)
+}
+
+# Ejecutar la busqueda de hiperparametros
+mejores_parametros <- buscar_mejores_hiperparametros(hyper_iters = 10)
+
+# Mostrar los mejores hiperparametros encontrados
+cat("Mejores hiperparametros encontrados:\n")
+cat("Tamaño de poblacion:", mejores_parametros$n_poblacion, "\n")
+cat("Probabilidad de cruce:", round(mejores_parametros$cxpb, 2), "\n")
+cat("Probabilidad de mutacion:", round(mejores_parametros$mutpb, 2), "\n")
+cat("Numero de generaciones:", mejores_parametros$ngen, "\n")
+cat("Distancia optima:", mejores_parametros$distancia_optima, "km\n")
+```
+
+```{r}
+buscar_mejores_hiperparametros <- function(hyper_iters = 10) {
+  mejor_distancia <- Inf
+  mejores_parametros <- NULL
+  
+  for (i in 1:hyper_iters) {
+    # Selección aleatoria de hiperparámetros
+    n_poblacion <- sample(c(10, 20, 50), 1)
+    cxpb <- runif(1, 0.4, 0.9)
+    mutpb <- runif(1, 0.1, 0.3)
+    ngen <- sample(c(100, 300, 500), 1)  
+    
+    # Ejecutar el algoritmo genético
+    ga_modelo <- ga(
+      type = "permutation",
+      fitness = function(x) -trayectoria(x),
+      lower = 1, 
+      upper = nrow(museos),
+      popSize = n_poblacion,
+      maxiter = ngen,
+      pmutation = mutpb,
+      pcrossover = cxpb,
+      elitism = TRUE  # Añadido para preservar mejores soluciones
+    )
+    
+    # Evaluar resultados
+    distancia_actual <- -ga_modelo@fitnessValue
+    
+    if (distancia_actual < mejor_distancia) {
+      mejor_distancia <- distancia_actual
+      mejores_parametros <- list(
+        n_poblacion = n_poblacion,
+        cxpb = cxpb,
+        mutpb = mutpb,
+        ngen = ngen,
+        ruta_optima = ga_modelo@solution[1, ],
+        distancia_optima = distancia_actual
+      )
+    }
+  }
+  
+  return(mejores_parametros)
+}
+
+# Ejecutar y mostrar resultados
+mejores_parametros <- buscar_mejores_hiperparametros(hyper_iters = 10)
+
+cat("Mejores hiperparámetros encontrados:\n")
+cat("Tamaño de población:", mejores_parametros$n_poblacion, "\n")
+cat("Probabilidad de cruce:", round(mejores_parametros$cxpb, 2), "\n")
+cat("Probabilidad de mutación:", round(mejores_parametros$mutpb, 2), "\n")  # Corregido: faltaba coma
+cat("Número de generaciones:", mejores_parametros$ngen, "\n")
+cat("Distancia óptima:", round(mejores_parametros$distancia_optima, 2), "km\n")
+```
+
+```{r}
+# Simulacion de costos del mejor recorrido
+
+# Definir  costos
+costo_por_km <- 0.5 # costo estimado por km
+costo_base <- 500 # costo base del viaje (ej: boletos, entradas, etc)
+
+# Calcular costo total del recorrido optimo
+DistanciaOptima <- distancia_optima
+costo_total <- (DistanciaOptima * costo_por_km) + costo_base
+
+# Mostrar resultados de la simulacion de costos
+cat("\n*** Simulacion de costos ***\n")
+cat("Costo por km: $", costo_por_km, "\n")
+cat("Costo base del viaje: $", costo_base, "\n")
+cat("Costo total estimado del recorrido optimo: $", costo_total)
+```
+```{r}
+# APLICACION INTERACTIVA CON Shiny PARA OPTIMIZAR RUTAS ENTRE MUSEOS
+
+library(shiny)
+library(leaflet)
+library(GA)
+
+# Interfaz de usuario (UI)
+ui <- fluidPage(
+  titlePanel("Optimizador de Rutas de Museos con Algoritmos Genéticos"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("hyper_iters", "Número de iteraciones para buscar hiperparámetros:", 
+                  min = 5, max = 50, value = 10),
+      actionButton("run_ga", "Ejecutar Algoritmo Genético"),
+      hr(),
+      h4("Mejores Hiperparámetros:"),
+      verbatimTextOutput("best_params"),
+      h4("Distancia Óptima:"),
+      verbatimTextOutput("best_distance")
+    ),
+    mainPanel(
+      leafletOutput("map", height = "600px")
+    )
+  )
+)
+
+# Lógica del servidor (Server)
+server <- function(input, output) {
+  # Ejecutar GA al hacer clic en el botón
+  resultados <- eventReactive(input$run_ga, {
+    buscar_mejores_hiperparametros(hyper_iters = input$hyper_iters)
+  })
+  
+  # Mostrar hiperparámetros
+  output$best_params <- renderPrint({
+    req(resultados())
+    cat(
+      "Tamaño de población:", resultados()$n_poblacion, "\n",
+      "Probabilidad de cruce:", round(resultados()$cxpb, 2), "\n",
+      "Probabilidad de mutación:", round(resultados()$mutpb, 2), "\n",
+      "Generaciones:", resultados()$ngen
+    )
+  })
+  
+  # Mostrar distancia óptima
+  output$best_distance <- renderText({
+    req(resultados())
+    paste(round(resultados()$distancia_optima, 2), "km")
+  })
+  
+  # Renderizar mapa interactivo
+  output$map <- renderLeaflet({
+    req(resultados())
+    ruta <- resultados()$ruta_optima
+    leaflet(museos[ruta, ]) %>%
+      addTiles() %>%
+      addMarkers(
+        lng = ~Longitudes, 
+        lat = ~Latitudes,
+        popup = ~Nombres_museos,
+        label = ~paste("Parada", 1:nrow(museos))
+      ) %>%
+      addPolylines(
+        lng = ~Longitudes,
+        lat = ~Latitudes,
+        color = "red",
+        weight = 3
+      )
+  })
+}
+
+# Ejecutar la app
+shinyApp(ui = ui, server = server)
+```
+
+
+```{r}
+# EJEMPLO PRÁCTICO CON MUSEOS DE ARGENTINA
+
+# Cargar librerías necesarias
+library(GA)             # Algoritmos genéticos
+library(leaflet)        # Mapas interactivos
+library(geosphere)      # Cálculo de distancias geográficas
+library(cluster)        # Clustering (PAM)
+library(TSP)            # Problema del Viajante (TSP)
+library(dplyr)          # Manipulación de datos
+
+## ---------------------------
+## 1. DATOS DE MUSEOS ARGENTINOS
+## ---------------------------
+museos <- data.frame(
+  nombre = c(
+    "Museo Nacional de Bellas Artes (Buenos Aires)",
+    "MALBA (Buenos Aires)",
+    "Museo de Arte Moderno (Buenos Aires)",
+    "Museo Evita (Buenos Aires)",
+    "Museo Histórico Nacional (Buenos Aires)",
+    "Museo de Arte Latinoamericano de La Plata",
+    "Museo Municipal de Arte Moderno (Mendoza)",
+    "Museo de Arte Contemporáneo (Rosario)",
+    "Museo de la Patagonia (Bariloche)",
+    "Museo del Fin del Mundo (Ushuaia)"
+  ),
+  lat = c(
+    -34.5889, -34.5792, -34.5895, -34.5878, -34.6115,
+    -34.9215, -32.8908, -32.9442, -41.1335, -54.8073
+  ),
+  lng = c(
+    -58.3949, -58.4114, -58.3960, -58.3933, -58.3731,
+    -57.9545, -68.8271, -60.6505, -71.3103, -68.3043
+  ),
+  cluster = NA  # Para almacenar grupos geográficos
+)
+
+## ---------------------------
+## 2. PRE-PROCESAMIENTO
+## ---------------------------
+
+# Clustering geográfico (agrupa museos cercanos)
+set.seed(123)
+clusters <- pam(museos[, c("lat", "lng")], k = 3)  # 3 regiones
+museos$cluster <- clusters$clustering
+
+# Matriz de distancias con penalización entre clusters
+D <- matrix(0, nrow = nrow(museos), ncol = nrow(museos))
+for (i in 1:nrow(museos)) {
+  for (j in 1:nrow(museos)) {
+    # Penalización 50% para museos en clusters diferentes
+    penalty <- ifelse(museos$cluster[i] != museos$cluster[j], 1.5, 1)
+    D[i, j] <- distGeo(
+      c(museos$lng[i], museos$lat[i]),
+      c(museos$lng[j], museos$lat[j])
+    ) / 1000 * penalty  # Distancia en km con penalización
+  }
+}
+
+## ---------------------------
+## 3. ALGORITMO GENÉTICO OPTIMIZADO
+## ---------------------------
+
+# Función de fitness mejorada
+trayectoria <- function(recorrido) {
+  # Distancia total + penalización por saltos extremos
+  distancia <- sum(D[recorrido[-length(recorrido)], recorrido[-1]])
+  distancia <- distancia + D[recorrido[length(recorrido)], recorrido[1]]  # Cierre del circuito
+  
+  # Penalización adicional para saltos > 5 grados de latitud
+  saltos <- diff(museos$lat[recorrido])
+  penalizacion <- sum(abs(saltos[saltos > 5])) * 10
+  return(distancia + penalizacion)
+}
+
+# Configuración del GA
+ga_modelo <- ga(
+  type = "permutation",
+  fitness = function(x) -trayectoria(x),  # Minimizar distancia
+  lower = 1,
+  upper = nrow(museos),
+  popSize = 100,      # Población grande para mejor exploración
+  maxiter = 1000,     # Más iteraciones
+  pmutation = 0.3,    # Mayor tasa de mutación
+  pcrossover = 0.9,   # Mayor tasa de cruce
+  elitism = TRUE,     # Preservar mejores soluciones
+  parallel = TRUE     # Paralelización
+)
+
+## ---------------------------
+## 4. OPTIMIZACIÓN POST-GA (2-opt)
+## ---------------------------
+
+# Refinamiento con algoritmo 2-opt
+tsp <- TSP(D)
+ruta_ga <- ga_modelo@solution[1, ]
+ruta_2opt <- solve_TSP(tsp, method = "2-opt", control = list(tour = ruta_ga))
+ruta_optima <- as.integer(ruta_2opt)
+distancia_optima <- tour_length(ruta_2opt)
+
+## ---------------------------
+## 5. VISUALIZACIÓN INTERACTIVA
+## ---------------------------
+
+# Paleta de colores para clusters
+colores <- c("blue", "green", "red")  # Un color por cluster
+
+mapa <- leaflet(museos[ruta_optima, ]) %>%
+  addTiles() %>%
+  setView(lng = mean(museos$lng), lat = mean(museos$lat), zoom = 5) %>%
+  # Marcadores con colores por cluster
+  addCircleMarkers(
+    lng = ~lng, lat = ~lat,
+    radius = 8,
+    color = ~colores[cluster],
+    fillOpacity = 0.8,
+    popup = ~paste0("<b>", nombre, "</b><br>Región: ", cluster),
+    label = ~paste("Parada", 1:nrow(museos))
+  ) %>%
+  # Línea de ruta optimizada
+  addPolylines(
+    lng = ~lng, lat = ~lat,
+    color = "purple", weight = 3,
+    popup = "Ruta optimizada"
+  ) %>%
+  # Leyenda de clusters
+  addLegend(
+    position = "bottomright",
+    colors = colores,
+    labels = paste("Región", 1:3),
+    title = "Agrupamiento geográfico"
+  )
+
+## ---------------------------
+## 6. RESULTADOS
+## ---------------------------
+
+# Imprimir resultados
+cat("=== RUTA ÓPTIMA ===\n")
+print(museos[ruta_optima, c("nombre", "cluster")])
+cat("\nDISTANCIA TOTAL:", round(distancia_optima, 2), "km\n")
+
+# Mostrar mapa
+mapa
+```
+
