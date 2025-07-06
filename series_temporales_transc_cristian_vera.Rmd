@@ -1,0 +1,254 @@
+---
+title: "series_temporales_transc_cristian_vera"
+author: "Cristian Vera"
+date: "2025-07-06"
+output: html_document
+---
+
+## Series Temporales
+
+Una serie temporal es un conjunto de datos numéricos organizados en secuencia cronológica, donde cada valor representa una observación tomada en un momento específico, como días, meses, trimestres o años. Este tipo de datos permite analizar cómo evolucionan ciertos fenómenos a lo largo del tiempo, identificar patrones como tendencias, estacionalidades o ciclos, y hacer predicciones futuras. Se utiliza en áreas como economía, meteorología, finanzas y producción, y puede ser modelada con herramientas estadísticas específicas como ARIMA o redes neuronales para pronóstico y análisis.
+
+🎯 ¿Para qué se usan? 
+
+Se usan para:
+1. Analizar tendencias (por ejemplo, si las ventas aumentan a lo largo del tiempo).
+2. Detectar estacionalidades (como mayor consumo en verano).
+3. Hacer predicciones (por ejemplo, cuánto se venderá el próximo mes).
+4. Modelar comportamientos con métodos como ARIMA, Holt-Winters, redes neuronales, etc.
+
+🧠 Características clave de una serie temporal:
+
+1. Tendencia: cambio sostenido a lo largo del tiempo (por ejemplo, crecimiento económico).
+2. Estacionalidad: patrones repetitivos en intervalos regulares (como el aumento de ventas en diciembre).
+3. Ciclos: fluctuaciones a largo plazo (por ejemplo, ciclos económicos).
+4. Ruido: variaciones aleatorias no explicadas por tendencias o ciclos.
+
+-
+
+¿Qué está haciendo?
+ts(...): crea un objeto de serie temporal en R.
+data = c(1:36): los datos son los números del 1 al 36.
+start = 2020 + 1/4: la serie comienza en el primer trimestre de 2020.
+2020 + 1/4 = 2020.25 es cómo R representa el primer trimestre (porque 1/4 = 0.25).
+frequency = 4: indica que es una serie trimestral (4 períodos por año).
+
+✅ Entonces, estás creando una serie temporal trimestral desde el primer trimestre de 2020, con 36 datos (es decir, 9 años completos).
+
+```{r}
+# Distribucion de datos empírica / 1:36 cantidad de elementos
+serieTemp <- ts(data=c(1:36), start = 2020+1/4, frequency = 4)
+cycle(serieTemp)
+```
+
+**Son 5 años de datos diarios para ventas de 50 artículos diferentes en 10 negocios distintos, entre 2013 y 2017 inclusive.**
+
+Elegiremos un artículo y un negocio de manera aleatoria y analizaremos la serie temporal.
+
+La idea es pronosticar las ventas del último año
+
+Esta serie tiene 2 estacionalidades: semanal y anual, y hay que incluirlas en el análisis.
+
+Vamos a usar otra librería, TBATS, que maneja estacionalidades no enteras.
+
+```{r}
+install.packages("forecast")
+install.packages("TSA")
+install.packages("tseries")
+```
+
+```{r}
+# carga el paquete 'forecast' para realizar pronósticos de series temporales
+library(forecast)
+
+# carga el paquete 'TSA' para análisis de series temporales
+library(TSA)
+
+# carga el paquete 'stats' para funciones estadísticas básicas
+library(stats)
+
+# carga el paquete 'tseries' para realizar pruebas de estacionariedad y otras operaciones
+# relacionadas con series temporales
+library(tseries)
+
+```
+
+
+```{r}
+# Cargamos el archivo traing.csv a un dataframe y empezamos
+ventas_todo <- read.csv('train.csv', header = TRUE)
+dim(ventas_todo) #Dimensiones de ventas
+ventas_todo
+```
+
+```{r}
+library(dplyr)
+
+# Contar los valores únicos en la columna 'store'
+num_unique_stores <- ventas_todo %>%
+  distinct(store) %>% # Filtrar los valores únicos en la columna 'store'
+  count()             # Contar el número de valores únicos
+
+# Contar los valores únicos en la columna 'item'
+num_unique_items <- ventas_todo %>%
+  distinct(item) %>% # Filtrar los valores únicos en la columna 'item'
+  count()            # Contar el número de valores únicos
+
+# Imprimir los resultados
+print(num_unique_items)
+print(num_unique_stores)
+
+```
+
+```{r}
+# Elegimos 'articulo' y 'negocio'
+set.seed(123)  # Establecemos una semilla para reproducibilidad
+articulo <- sample(1:50, 1)   # elijo un artículo aleatoriamente - ITEMS
+negocio <- sample(1:10, 1)    # elijo un negocio aleatoriamente - STORE
+cat("articulo =", articulo, "\n")
+cat("negocio =", negocio, "\n")
+
+```
+
+```{r}
+# Ahora seleccionamos sólo los datos del artículo y negocio elegidos
+ventas <- subset(ventas_todo, store == negocio & item == articulo)
+ventas <- ventas[, c("date", "sales")]    # Seleccionamos las columnas 'date' y 'sales'
+ventas$date <- as.Date(ventas$date)       # Convertimos la columna 'date' a formato de fecha
+rownames(ventas) <- NULL                  # Reiniciamos los nombres de fila
+ventas <- ventas[order(ventas$date), ]    # Ordenamos por fecha
+print(ventas$sales)
+
+```
+```{r}
+# Establecer tamaño de la figura
+options(repr.plot.width=16, repr.plot.height=6)
+
+# Graficar las ventas
+plot(ventas$date, ventas$sales, type = "l", xlab = "Fecha", ylab = "Ventas") # un type de líneas
+
+```
+
+```{r}
+# Filtrar datos hasta el 31/12/2013
+ventas_2013 <- ventas[ventas$date <= as.Date("2013-12-31"), ]
+
+# Graficar las ventas del primer año
+plot(ventas_2013$date, ventas_2013$sales, type = "l", xlab = "Fecha", ylab = "Ventas")
+```
+
+```{r}
+# Filtrar datos para el rango de fechas dado
+ventas_rango <- subset(ventas, date >= as.Date("2013-12-10") & date <= as.Date("2013-12-24"))
+
+# Graficar las ventas en el rango de fechas especificado
+plot(ventas_rango$date, ventas_rango$sales, type ="l", xlab="Fecha", ylab="Ventas")
+```
+
+**dickey_fuller** Ayuda a determinar si los datos siguen un proceso estacionario o si tienen tendencias o patrones estacionales que deben tenerse en cuenta en el análisis posterior. Si el valor p (p-value) es menor que 0.05, se rechaza la hipótesis nula de que la serie tiene raíces unitarias, lo que indica que la serie es estacionaria.
+
+```{r}
+# Función para realizar la prueba de Dickey-Fuller
+dickey_fuller <- function(serie) {
+  # Realizar la prueba de Dickey-Fuller
+  df_test <- adf.test(serie)
+  
+  # Extraer los resultados
+  tstat <- df_test$statistic
+  pvalue <- df_test$p.value
+  
+  # Imprimir los resultados
+  cat("Resultado de la prueba Dickey-Fuller:\n")
+  cat("------------\n")
+  cat("Estadistica de prueba\t", tstat, "\n")
+  cat("p-value\t\t\t", pvalue, "\n")
+  cat("------------\n")
+  
+  # Imprimir el resultado / por recomendacion estadistica , tambien se puede considerar el tstat.
+  if (pvalue < 0.05) {
+    cat("La serie es estacionaria\n")
+  } else {
+    cat("\nLa serie no es estacionaria\n")
+  }
+}
+
+```
+
+```{r}
+# Aplicar la funcion dickey-fuller a las ventas
+dickey_fuller(ventas$sales)
+```
+** Considerar que la estacionariedad es muy deseable, su ausencia no impide completamente el análisis de la serie temporal, pero puede requerir enfoques más avanzados y cuidadosos.
+
+```{r}
+# Dividir los datos en conjuntos de entrenamiento y prueba
+train <- ventas[ventas$date <="2016-12-31", ]
+test <- ventas[ventas$date > "2016-12-31", ]
+```
+
+```{r}
+test <- ventas[ventas$date > "2016-12-31", ]
+test
+```
+
+```{r}
+# Instalar y cargar el paquete forecast si aún no está instalado
+if (!requireNamespace("forecast", quietly = TRUE)) {
+  install.packages("forecast")
+}
+library(forecast)
+
+# Convertir la columna de Fecha a tipo Date si no está en ese formato
+train$date <- as.Date(train$date)
+
+# Definir la serie temporal
+serie_temporal <- ts(train$sales, frequency = 365)
+
+# Ajustar el modelo TBATS al conjunto de entrenamiento / por EDA se establece periodo de ventas semanal y patrones estacionales anuales :)
+model_tbats_train <- tbats(serie_temporal, seasonal.periods = c(7, 365.25))
+
+# Generar el pronóstico con el horizonte deseado
+horizonte_pronostico <- 365  # Horizonte de pronóstico deseado
+pronostico_tbats <- forecast(model_tbats_train, h = horizonte_pronostico)$mean # resumen óptimo de la serie
+
+```
+
+```{r}
+library(ggplot2)  # Asegurarse de cargar ggplot2
+# Graficar la serie temporal junto con las predicciones
+autoplot(pronostico_tbats, series = "Pronóstico TBATS") +
+  autolayer(serie_temporal, series = "Serie Temporal") +
+  ylab("Ventas") +
+  xlab("Fecha") +
+  ggtitle("Serie Temporal de Ventas y Pronóstico TBATS")
+
+```
+
+```{r}
+# Generar el pronóstico
+pronostico_tbats <- forecast(model_tbats_train, h = horizonte_pronostico)
+
+# Crear un dataframe con las fechas y los pronósticos
+df_pronostico <- data.frame(
+  Fecha = seq(from = as.Date("2017-01-01"), by = "day", length.out = horizonte_pronostico),
+  Pronostico = pronostico_tbats$mean
+)
+
+# Mostrar el dataframe
+print(df_pronostico)
+
+```
+
+```{r}
+# Supongamos que el valor promedio dpor venta es de $100
+valor_promedio_por_venta <- 100
+
+# Calcular los ingresos proyectados
+ingresos_proyectados <- sum(df_pronostico$Pronostico) * valor_promedio_por_venta
+
+# Mostrar los ingresos proyectados
+cat("Ingresos proyectados para el proximo año: $", ingresos_proyectados, "\n")
+
+
+```
+
