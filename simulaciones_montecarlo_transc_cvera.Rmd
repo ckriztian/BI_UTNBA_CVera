@@ -1,0 +1,271 @@
+---
+title: "Simulaciones y Montecarlo"
+author: "Cristian Vera"
+date: "2025-07-06"
+output: html_document
+---
+
+¿Qué es el Método Monte Carlo? 🎲
+El Método Monte Carlo 🎲 es una técnica estadística de simulación que se utiliza para entender el impacto de la incertidumbre y el riesgo en modelos matemáticos y financieros 📈. Es especialmente útil cuando las matemáticas tradicionales son demasiado complejas o no se pueden aplicar fácilmente.
+
+Origen del Método Monte Carlo 🏰
+El nombre "Monte Carlo" 🏰 se debe a la famosa ciudad de Mónaco conocida por sus casinos y juegos de azar. El término fue introducido por Stanislaw Ulam y Nicholas Metropolis en la década de 1940 durante su trabajo en el Proyecto Manhattan, aunque la idea de la simulación estocástica se remonta a los trabajos de John von Neumann en los años 30.
+
+<!-- El objetivo de este código es realizar una simulación de Monte Carlo para estimar la 
+probabilidad de ganar un "premio" al elegir un pingüino al azar de una especie objetivo 
+específica en el conjunto de datos de pingüinos. -->
+
+```{r}
+# Cargar la biblioteca
+install.packages("palmerpenguins")
+library(palmerpenguins)
+```
+
+```{r}
+# Cargar el conjunto de datos de pingüinos
+data("penguins")
+
+```
+
+```{r}
+penguins
+```
+
+```{r}
+# Número de simulaciones de Monte Carlo
+num_simulaciones <- 10000  # Define el número de simulaciones que se realizarán
+
+# Función para realizar una simulación de Monte Carlo y calcular la probabilidad
+simulacion_loteria_pingüinos <- function(especie_objetivo) {
+  especie_elegida <- sample(penguins$species, 1)  # Selecciona una especie aleatoria del conjunto de datos
+  return(especie_elegida == especie_objetivo)     # Devuelve TRUE si la especie elegida es igual a la especie objetivo
+}
+
+# Programa interactivo
+cat("¡Bienvenido a la Lotería de Pingüinos!\n")  # Imprime un mensaje de bienvenida
+cat("Especies disponibles en el conjunto de datos:\n")  # Imprime las especies disponibles
+especies_disponibles <- unique(penguins$species)  # Obtiene las especies únicas del conjunto
+
+print(especies_disponibles, sep = "\n")  # Imprime las especies disponibles
+
+especie_objetivo <- readline(prompt = "Ingresa la especie objetivo (elige una de las especies de arriba): ")  # Solicita al usuario ingresar una especie objetivo
+
+# Verificar si la especie ingresada es válida
+if (especie_objetivo %in% especies_disponibles) {  # Verifica si la especie objetivo está en la lista de especies disponibles
+  # Realizar las simulaciones de Monte Carlo
+  set.seed(123)  # Establece una semilla para reproducibilidad
+  resultados <- replicate(num_simulaciones, simulacion_loteria_pingüinos(especie_objetivo))  # Realiza las simulaciones
+
+  # Calcular la probabilidad de ganar un premio
+  probabilidad_ganar_premio <- sum(resultados) / num_simulaciones  # Calcula la probabilidad de que la especie objetivo sea elegida en las simulaciones
+
+  # Imprimir la probabilidad
+  cat("Probabilidad de ganar un premio si eliges un pingüino al azar de la especie",
+      especie_objetivo, ":", probabilidad_ganar_premio, "\n")  # Imprime la probabilidad calculada
+} else {
+  cat("Especie ingresada no válida. Asegúrate de elegir una de las especies disponibles en la lista.\n")  # Imprime un mensaje de error si la especie objetivo no es válida
+}
+
+```
+<!-- El objetivo de este código es simular el apareamiento entre dos especies de pingüinos seleccionadas por el usuario y calcular la probabilidad de que ocurra un apareamiento exitoso entre esas dos especies. -->
+
+```{r}
+library(palmerpenguins)
+library(dplyr)
+
+```
+
+```{r}
+# Obtener la lista de todas las especies únicas en el conjunto de datos
+especies_disponibles <- unique(penguins$species)  # Extrae las especies únicas
+especies_disponibles  # Imprime la lista de especies disponibles
+
+# Solicitar al usuario que ingrese las especies que desea aparear
+especie1 <- readline("Ingrese la primera especie: ")
+especie2 <- readline("Ingrese la segunda especie: ")
+
+# Verificar si las especies ingresadas son válidas
+if (!(especie1 %in% especies_disponibles) || !(especie2 %in% especies_disponibles)) {
+  cat("Al menos una de las especies ingresadas no es válida.\n")
+  
+} else if (especie1 == especie2) {
+  cat("Las especies ingresadas son iguales. Deben ser diferentes para el apareamiento.\n")
+  
+} else {
+  # Filtrar el conjunto de datos para incluir solo las dos especies de interés
+  especies <- c(especie1, especie2)
+  pinguinos <- penguins %>%
+    filter(species %in% especies)
+
+  # Número de simulaciones Monte Carlo
+  num_simulaciones <- 1000
+
+  # Vector para almacenar los resultados de las simulaciones
+  resultados_apareamiento <- numeric(num_simulaciones)
+
+  # Realizar las simulaciones
+  for (i in 1:num_simulaciones) {
+    pareja <- sample(1:nrow(pinguinos), 2)
+    especie_pareja1 <- pinguinos$species[pareja[1]]
+    especie_pareja2 <- pinguinos$species[pareja[2]]
+
+    resultados_apareamiento[i] <- ifelse(especie_pareja1 != especie_pareja2, 1, 0)
+  }
+
+  # Calcular la probabilidad de éxito de apareamiento
+  probabilidad_exito <- mean(resultados_apareamiento)
+
+  # Mostrar el resultado
+  cat("Probabilidad de éxito de apareamiento entre especies:", probabilidad_exito, "\n")
+}
+
+
+```
+
+✅ Código Mejorado: Apareamiento entre macho y hembra de diferentes especies
+
+Versión más flexible del código, donde el usuario puede ingresar:
+- La especie del macho.
+- La especie de la hembra.
+
+La simulación generará apareamientos solo entre esas dos combinaciones específicas.
+
+```{r}
+library(dplyr)
+library(palmerpenguins)
+
+# Obtener especies disponibles
+especies_disponibles <- unique(penguins$species)
+print(especies_disponibles)
+
+# Solicitar al usuario las dos especies
+especie_macho <- readline("Ingrese la especie del macho: ")
+especie_hembra <- readline("Ingrese la especie de la hembra: ")
+
+# Validaciones
+if (!(especie_macho %in% especies_disponibles) || !(especie_hembra %in% especies_disponibles)) {
+  cat("Al menos una de las especies ingresadas no es válida.\n")
+  
+} else if (especie_macho == especie_hembra) {
+  cat("Las especies deben ser diferentes para esta simulación.\n")
+  
+} else {
+  # Filtrar pingüinos machos de la primera especie y hembras de la segunda
+  machos <- penguins %>%
+    filter(species == especie_macho, sex == "male")
+  
+  hembras <- penguins %>%
+    filter(species == especie_hembra, sex == "female")
+
+  # Validar que haya datos suficientes
+  if (nrow(machos) == 0 || nrow(hembras) == 0) {
+    cat("No hay suficientes datos para una o ambas combinaciones de sexo y especie.\n")
+  } else {
+    # Definir número de simulaciones
+    num_simulaciones <- 1000
+    resultados_apareamiento <- numeric(num_simulaciones)
+
+    # Realizar simulaciones (macho de especie 1 con hembra de especie 2)
+    for (i in 1:num_simulaciones) {
+      macho <- sample_n(machos, 1)
+      hembra <- sample_n(hembras, 1)
+
+      # Se considera éxito si son de especies distintas (ya está garantizado por el filtro)
+      resultados_apareamiento[i] <- ifelse(macho$body_mass_g > hembra$body_mass_g, 1, 0)
+
+    }
+
+    # Calcular probabilidad de éxito
+    probabilidad_exito <- mean(resultados_apareamiento)
+
+    # Mostrar resultado
+    cat("Probabilidad de éxito de apareamiento entre un macho de", especie_macho,
+        "y una hembra de", especie_hembra, ":", probabilidad_exito, "\n")
+  }
+}
+
+```
+
+```{r}
+# Cargar librerías necesarias
+library(shiny)
+library(dplyr)
+library(palmerpenguins)
+
+# Definir la interfaz de usuario
+ui <- fluidPage(
+  titlePanel("Simulador de Apareamiento de Pingüinos"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("especie_macho", "Seleccione la especie del macho:",
+                  choices = unique(na.omit(penguins$species))),
+      
+      selectInput("especie_hembra", "Seleccione la especie de la hembra:",
+                  choices = unique(na.omit(penguins$species))),
+      
+      numericInput("num_simulaciones", "Cantidad de simulaciones:",
+                   value = 1000, min = 1),
+      
+      actionButton("simular", "Simular")
+    ),
+    
+    mainPanel(
+      verbatimTextOutput("resultado")
+    )
+  )
+)
+
+# Definir la lógica del servidor
+server <- function(input, output) {
+  observeEvent(input$simular, {
+    
+    especie_macho <- input$especie_macho
+    especie_hembra <- input$especie_hembra
+    num_simulaciones <- input$num_simulaciones
+    
+    # Validaciones
+    if (especie_macho == especie_hembra) {
+      output$resultado <- renderPrint({
+        "Las especies deben ser diferentes para esta simulación."
+      })
+      
+    } else {
+      machos <- penguins %>%
+        filter(species == especie_macho, sex == "male", !is.na(body_mass_g))
+      
+      hembras <- penguins %>%
+        filter(species == especie_hembra, sex == "female", !is.na(body_mass_g))
+      
+      if (nrow(machos) == 0 || nrow(hembras) == 0) {
+        output$resultado <- renderPrint({
+          "No hay suficientes datos para una o ambas combinaciones de sexo y especie."
+        })
+        
+      } else {
+        resultados_apareamiento <- numeric(num_simulaciones)
+        
+        for (i in 1:num_simulaciones) {
+          macho <- sample_n(machos, 1)
+          hembra <- sample_n(hembras, 1)
+          
+          resultados_apareamiento[i] <- ifelse(macho$body_mass_g > hembra$body_mass_g, 1, 0)
+        }
+        
+        probabilidad_exito <- mean(resultados_apareamiento)
+        
+        output$resultado <- renderPrint({
+          cat("Probabilidad de éxito de apareamiento entre un macho de", especie_macho,
+              "y una hembra de", especie_hembra, ":", probabilidad_exito, "\n")
+        })
+      }
+    }
+  })
+}
+
+# Ejecutar la aplicación
+shinyApp(ui = ui, server = server)
+
+```
+
+
