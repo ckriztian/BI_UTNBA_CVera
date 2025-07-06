@@ -1,0 +1,120 @@
+---
+title: "Speach to Text y Text Mining"
+author: "Cristian Vera"
+date: "2025-07-06"
+output: html_document
+---
+
+```{r}
+# install.packages("quanteda")
+# install.packages("tm")
+```
+
+```{r}
+# Librerias necesarias
+library(quanteda) #Para analisis de texto
+library(tm)       #Para procesamiento de texto
+library(readtext) #Para leer el doc Word
+library(dplyr)    #Para manipulacion de datos
+library(wordcloud2) #Para crear una nube de palabras
+library(readr)
+```
+
+**EN ESTE EJEMPLO SE HIZO CON UN ARCHIVO .TXT, SE PUEDE HACER CON PDF Y WORDS. SOLAMENTE HAY QUE ADAPTAR LAS LIBRERIAS Y LINEA DE CODIGO DE LECTURA PARA CADA FORMATO.**
+
+
+```{r}
+# Leer archivo como vector de líneas
+texto <- read_file("Don_Quijote_de_la_Mancha.txt", locale = locale(encoding = "UTF-8"))
+
+```
+
+```{r}
+corpus <- Corpus(VectorSource(texto))
+```
+
+
+```{r}
+# Preprocesamiento de texto
+corpus <- tm_map(corpus, content_transformer(tolower))             # Convertir texto a minúsculas
+corpus <- tm_map(corpus, removePunctuation)                        # Eliminar puntuación
+corpus <- tm_map(corpus, removeNumbers)                            # Eliminar números
+corpus <- tm_map(corpus, removeWords, stopwords("spanish"))        # Eliminar palabras comunes en español
+corpus <- tm_map(corpus, stripWhitespace)                          # Eliminar espacios en blanco innecesarios
+
+```
+
+```{r}
+corpus <- Corpus(VectorSource(sapply(corpus, as.character))) # Reconstruir el corpus
+```
+
+```{r}
+# Crear una matriz de terminos de documento
+dtm <- DocumentTermMatrix(corpus)
+```
+
+```{r}
+frequent_terms <- findFreqTerms(dtm, lowfreq = 10) # Encontrar terminos mas frecuentes
+```
+
+```{r}
+print(frequent_terms) # Visualizar resultados
+```
+
+```{r}
+# Suponiendo que ya tenés la matriz DTM
+findAssocs(dtm, terms = "quijote", corlimit = 0.2)
+
+```
+
+```{r}
+# Contar la frecuencia de las palabras mas repetidas
+word_freq <- colSums(as.matrix(dtm[, frequent_terms]))
+
+# Crear un df con las palabras y freq
+word_freq_df <- data.frame(word = names(word_freq), frequency = word_freq)
+```
+
+```{r}
+# Ordenar el df por freq en orden descendente
+word_freq_df <- word_freq_df %>%
+  arrange(desc(frequency))
+
+# Seleccionar el top 10 de palabras mas frecuentes
+top_words <- head(word_freq_df, 10)
+
+# Crear una nube de palabras interativa
+wordcloud2(top_words, size = 0.8) # Crear una nube de palabras interactiva con las 10 palabras mas frecuentes
+```
+
+
+
+## INCORPORACIÓN A LA TRANSCRIPCION. :)
+
+
+```{r}
+# Visualización de frecuencia con ggplot2
+
+library(ggplot2)
+
+ggplot(top_words, aes(x = reorder(word, frequency), y = frequency)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top 10 palabras más frecuentes", x = "Palabra", y = "Frecuencia") +
+  theme_minimal()
+
+```
+
+
+```{r}
+# Detección de temas con LDA (análisis de tópicos)
+
+library(topicmodels)
+
+lda_model <- LDA(dtm, k = 3, control = list(seed = 123))
+topics <- terms(lda_model, 5)
+print(topics)
+
+```
+
+
